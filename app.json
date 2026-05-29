@@ -16,10 +16,30 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "foo.xela.beamremote"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "04ee52f0-3dbb-46e3-84b3-310dc240f8a9"
+      }
+    },
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": ["react-native-udp"]
+      }
+    },
+    "plugins": [
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-5426776073908385~9871490893",
+          "iosAppId": "ca-app-pub-5426776073908385~1452429451"
+        }
+      ]
+    ]
   }
 }
