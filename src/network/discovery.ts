@@ -1,7 +1,7 @@
-// src/network/discovery.ts
 import dgram from "react-native-udp";
 import { Buffer } from "buffer";
-import { UniversalDevice } from "./adapters/TVAdapter";
+import { UniversalDevice } from "./adapters/UniversalAdapter";
+import { RokuAdapter } from "./adapters/RokuAdapter";
 
 const SSDP_ADDRESS = "239.255.255.250";
 const SSDP_PORT = 1900;
@@ -13,64 +13,42 @@ const SEARCH_MESSAGE = Buffer.from(
     "ST: roku:ecp\r\n\r\n",
 );
 
-// Updated Robust Regex
-const extractXmlTag = (source: string, tag: string): string => {
-  const regex = new RegExp(`<${tag}[^>]*>(.*?)</${tag}>`);
-  const match = source.match(regex);
-  return match && match[1] ? match[1] : "";
-};
-
-const decodeXmlEntities = (text: string): string => {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'");
-};
-
-const fetchDeviceDetails = async (
-  ip: string,
-): Promise<UniversalDevice | null> => {
-  try {
-    const response = await fetch(`http://${ip}:8060/query/device-info`);
-    if (!response.ok) return null;
-
-    const xmlText = await response.text();
-    const rawName =
-      extractXmlTag(xmlText, "user-device-name") ||
-      extractXmlTag(xmlText, "default-device-name") ||
-      "Roku Device";
-    const rawModel = extractXmlTag(xmlText, "model-name") || "Unknown Model";
-
-    return {
-      ip,
-      name: decodeXmlEntities(rawName),
-      model: decodeXmlEntities(rawModel),
-      platform: "roku", // Required by the new Universal Protocol
-    };
-  } catch (error) {
-    return null;
-  }
-};
-
 export const discoverRokus = (
   onDeviceFound: (device: UniversalDevice) => void,
   savedDevices: UniversalDevice[] = [],
 ) => {
   const socket = dgram.createSocket({ type: "udp4" });
   let pulseInterval: NodeJS.Timeout;
+  let isDestroyed = false;
   const processedIps = new Set<string>();
 
+  // Catch asynchronous native socket errors to prevent crashes on network swap
+  socket.on("error", (err) => {
+    console.warn("[Network] Transient socket error:", err.message);
+  });
+
   socket.bind(0, () => {
+    if (isDestroyed) {
+      try {
+        socket.close();
+      } catch (e) {}
+      return;
+    }
+
     const sendPulse = () => {
-      socket.send(
-        SEARCH_MESSAGE,
-        0,
-        SEARCH_MESSAGE.length,
-        SSDP_PORT,
-        SSDP_ADDRESS,
-      );
+      if (isDestroyed) return;
+
+      try {
+        socket.send(
+          SEARCH_MESSAGE,
+          0,
+          SEARCH_MESSAGE.length,
+          SSDP_PORT,
+          SSDP_ADDRESS,
+        );
+      } catch (error) {
+        console.warn("[Network] Sync send error:", error);
+      }
     };
 
     sendPulse();
@@ -78,6 +56,8 @@ export const discoverRokus = (
   });
 
   socket.on("message", async (msg, rinfo) => {
+    if (isDestroyed) return;
+
     const response = msg.toString();
     const ip = rinfo.address;
 
@@ -88,25 +68,31 @@ export const discoverRokus = (
       if (knownDevice) {
         onDeviceFound(knownDevice);
       } else {
+        // Yield a temporary UI state while we fetch the actual XML capabilities
         onDeviceFound({
           ip,
           name: ip,
           model: "Fetching details...",
           platform: "roku",
+          supportedKeys: [],
         });
       }
 
-      const freshDetails = await fetchDeviceDetails(ip);
-      if (freshDetails) {
+      // Delegate the actual parsing to the adapter to keep this file purely focused on SSDP
+      const freshDetails = await RokuAdapter.getDeviceInfo(ip);
+      if (freshDetails && !isDestroyed) {
         onDeviceFound(freshDetails);
       }
     }
   });
 
   return () => {
+    isDestroyed = true;
     clearInterval(pulseInterval);
     try {
       socket.close();
-    } catch (e) {}
+    } catch (error) {
+      console.warn("[Network] Error safely closing socket:", error);
+    }
   };
 };

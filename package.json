@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
+    "@react-native-community/netinfo": "11.4.1",
     "expo": "~54.0.0",
     "expo-dev-client": "~6.0.21",
     "expo-status-bar": "~3.0.9",
+    "fast-xml-parser": "^5.8.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-google-mobile-ads": "^16.3.3",
@@ -19,9 +22,10 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "bundle": "node scripts/bundle-code.js"
   },
   "private": true
 }

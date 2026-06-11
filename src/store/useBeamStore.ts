@@ -2,11 +2,10 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { StateStorage } from "zustand/middleware";
 import { createMMKV } from "react-native-mmkv";
-import { UniversalDevice } from "../network/adapters/TVAdapter";
+import { UniversalDevice } from "../network/adapters/UniversalAdapter";
 
 const storage = createMMKV({ id: "beam-storage" });
 
-// Create a custom storage wrapper for Zustand to interface with MMKV
 const zustandStorage: StateStorage = {
   setItem: (name, value) => storage.set(name, value),
   getItem: (name) => {
@@ -18,10 +17,12 @@ const zustandStorage: StateStorage = {
 
 interface BeamStore {
   activeIp: string | null;
+  isDeviceConnected: boolean;
   lastConnectedIp: string | null;
   discoveredDevices: UniversalDevice[];
   savedDevices: UniversalDevice[];
   setActiveIp: (ip: string | null) => void;
+  setIsDeviceConnected: (status: boolean) => void;
   upsertDiscoveredDevice: (device: UniversalDevice) => void;
   saveDeviceToRoster: (device: UniversalDevice) => void;
   clearDiscovery: () => void;
@@ -31,15 +32,19 @@ export const useBeamStore = create<BeamStore>()(
   persist(
     (set) => ({
       activeIp: null,
-      lastConnectedIp: null, // Tracks the last used device for fast-boot
+      isDeviceConnected: true, // Assume true on mount, heartbeat will verify
+      lastConnectedIp: null,
       discoveredDevices: [],
       savedDevices: [],
 
       setActiveIp: (ip) =>
         set((state) => ({
           activeIp: ip,
+          isDeviceConnected: !!ip, // Reset connection state when IP changes
           lastConnectedIp: ip ? ip : state.lastConnectedIp,
         })),
+
+      setIsDeviceConnected: (status) => set({ isDeviceConnected: status }),
 
       upsertDiscoveredDevice: (device) =>
         set((state) => {
@@ -54,7 +59,6 @@ export const useBeamStore = create<BeamStore>()(
           return { discoveredDevices: [...state.discoveredDevices, device] };
         }),
 
-      // Explicitly saves a device to persistent storage
       saveDeviceToRoster: (device) =>
         set((state) => {
           const exists = state.savedDevices.some((d) => d.ip === device.ip);
@@ -67,10 +71,8 @@ export const useBeamStore = create<BeamStore>()(
       clearDiscovery: () => set({ discoveredDevices: [] }),
     }),
     {
-      name: "beam-storage", // unique name
+      name: "beam-storage",
       storage: createJSONStorage(() => zustandStorage),
-      // We only want to persist saved devices and last connection.
-      // Active connection and discovery should reset on hard app kills.
       partialize: (state) => ({
         savedDevices: state.savedDevices,
         lastConnectedIp: state.lastConnectedIp,

@@ -1,8 +1,8 @@
-// src/network/adapters/TVAdapter.ts
-
 export enum UniversalKey {
   HOME = "HOME",
   PLAY = "PLAY",
+  REWIND = "REWIND",
+  FORWARD = "FORWARD",
   SELECT = "SELECT",
   LEFT = "LEFT",
   RIGHT = "RIGHT",
@@ -11,6 +11,9 @@ export enum UniversalKey {
   BACK = "BACK",
   POWER = "POWER",
   BACKSPACE = "BACKSPACE",
+  VOL_UP = "VOL_UP",
+  VOL_DOWN = "VOL_DOWN",
+  MUTE = "MUTE",
 }
 
 export interface UniversalDevice {
@@ -18,9 +21,10 @@ export interface UniversalDevice {
   name: string;
   model: string;
   platform: "roku" | "webos" | "androidtv";
+  supportedKeys?: UniversalKey[];
 }
 
-export interface TVAdapter {
+export interface UniversalAdapter {
   platform: string;
   sendKey(ip: string, key: UniversalKey): Promise<boolean>;
   sendText(ip: string, text: string): Promise<boolean>;
