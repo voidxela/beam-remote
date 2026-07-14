@@ -2,6 +2,7 @@ import {
   UniversalAdapter,
   UniversalDevice,
   UniversalKey,
+  TVApp,
 } from "./UniversalAdapter";
 import { RokuAdapter } from "./RokuAdapter";
 
@@ -31,5 +32,17 @@ export const AdapterRegistry = {
     const adapter = this.getAdapter(device.platform);
     if (!adapter) return null;
     return adapter.getDeviceInfo(device.ip);
+  },
+
+  async getApps(device: UniversalDevice): Promise<TVApp[]> {
+    const adapter = this.getAdapter(device.platform);
+    if (!adapter) return [];
+    return adapter.getApps(device.ip);
+  },
+
+  async launchApp(device: UniversalDevice, appId: string): Promise<boolean> {
+    const adapter = this.getAdapter(device.platform);
+    if (!adapter) return false;
+    return adapter.launchApp(device.ip, appId);
   },
 };

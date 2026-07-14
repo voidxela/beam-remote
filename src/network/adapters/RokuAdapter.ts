@@ -4,6 +4,7 @@ import {
   UniversalAdapter,
   UniversalKey,
   UniversalDevice,
+  TVApp,
 } from "./UniversalAdapter";
 
 const RokuKeyMap: Record<UniversalKey, string> = {
@@ -26,6 +27,11 @@ const RokuKeyMap: Record<UniversalKey, string> = {
 
 const parser = new XMLParser({
   ignoreAttributes: true,
+  parseTagValue: true,
+});
+
+const appParser = new XMLParser({
+  ignoreAttributes: false,
   parseTagValue: true,
 });
 
@@ -133,6 +139,54 @@ export const RokuAdapter: UniversalAdapter = {
       };
     } catch (error) {
       return null;
+    }
+  },
+
+  getApps: async (ip: string): Promise<TVApp[]> => {
+    try {
+      const response = await fetchWithTimeout(
+        `http://${ip}:8060/query/apps`,
+        {},
+        3000,
+      );
+      if (!response.ok) return [];
+
+      const xmlText = await response.text();
+      const parsed = appParser.parse(xmlText);
+      const appsNode = parsed.apps?.app;
+
+      if (!appsNode) return [];
+
+      const appsArray = Array.isArray(appsNode) ? appsNode : [appsNode];
+
+      return appsArray
+        .filter((app: any) => app["@_id"])
+        .map((app: any) => ({
+          id: String(app["@_id"]),
+          name: String(app["#text"] || ""),
+          iconUrl: `http://${ip}:8060/query/icon/${app["@_id"]}`,
+        }));
+    } catch (error) {
+      return [];
+    }
+  },
+
+  launchApp: async (ip: string, appId: string): Promise<boolean> => {
+    const url = `http://${ip}:8060/launch/${appId}`;
+    try {
+      fetchWithTimeout(url, { method: "POST" }).catch(() => {
+        DeviceEventEmitter.emit("SHOW_TOAST", {
+          message: `Failed to launch app.`,
+          type: "error",
+        });
+      });
+      return true;
+    } catch (error) {
+      DeviceEventEmitter.emit("SHOW_TOAST", {
+        message: `Failed to launch app.`,
+        type: "error",
+      });
+      return false;
     }
   },
 };
