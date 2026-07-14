@@ -21,6 +21,9 @@ Beam is a high-performance, cross-platform universal TV remote. Development is c
 * **Layout Anchoring:** Muscle memory for the D-Pad is critical. The bottom `AdBanner` container acts as an immutable 90px floor. For premium users, **do not unmount** the container; apply a transparent background and remove borders to maintain mathematical spacing.
 * **The Dummy Space Emitter:** The native keyboard integration relies on a stateless event emitter initialized with a single dummy space (`" "`). Autocorrect and predictive text must remain disabled (`keyboardType="visible-password"`). Do not attempt to refactor this into bi-directional state synchronization.
 
+## Workflow & Verification
+* **CRITICAL:** Before marking any task as complete, you MUST run `npx tsc --noEmit` in the terminal. You are strictly forbidden from submitting code that introduces new TypeScript errors. If errors exist, you must fix them before concluding your response.
+
 # Expo HAS CHANGED
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
