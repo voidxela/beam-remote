@@ -1,6 +1,14 @@
-import React, { useState } from "react";
-import { View, TouchableOpacity, Modal, Text, StyleSheet } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  TouchableOpacity,
+  Modal,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
 import { useMonetizationStore } from "../store/useMonetizationStore";
+import { PurchasesPackage } from "react-native-purchases";
 
 interface PremiumFeatureProps {
   children: React.ReactNode;
@@ -11,8 +19,26 @@ export const PremiumFeature: React.FC<PremiumFeatureProps> = ({
   children,
   fallbackMessage,
 }) => {
-  const { isPremium } = useMonetizationStore();
+  const {
+    isPremium,
+    packages,
+    isPurchasing,
+    fetchOfferings,
+    purchasePackage,
+    restorePurchases,
+  } = useMonetizationStore();
   const [showPaywall, setShowPaywall] = useState(false);
+
+  useEffect(() => {
+    if (showPaywall) {
+      fetchOfferings();
+    }
+  }, [showPaywall, fetchOfferings]);
+
+  const handleRestore = async () => {
+    await restorePurchases();
+    setShowPaywall(false);
+  };
 
   // If they paid, render the children normally without any wrappers
   if (isPremium) {
@@ -39,19 +65,80 @@ export const PremiumFeature: React.FC<PremiumFeatureProps> = ({
                 "Unlock this feature, remove ads, and access universal controls with Beam Premium."}
             </Text>
 
+            {packages.length === 0 ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#FFD700" />
+                <Text style={styles.loadingText}>Loading plans...</Text>
+              </View>
+            ) : (
+              packages.map((pkg: PurchasesPackage) => {
+                const buttonLabel = () => {
+                  if (isPurchasing) return null;
+
+                  if (pkg.packageType === "ANNUAL") {
+                    return (
+                      <View style={styles.subscribeButtonContent}>
+                        <View style={styles.trialBadge}>
+                          <Text style={styles.trialBadgeText}>
+                            7-DAY FREE TRIAL
+                          </Text>
+                        </View>
+                        <Text style={styles.subscribeButtonText}>
+                          Then {pkg.product.priceString} / year
+                        </Text>
+                      </View>
+                    );
+                  }
+
+                  if (pkg.packageType === "LIFETIME") {
+                    return (
+                      <Text style={styles.subscribeButtonText}>
+                        {pkg.product.priceString} One-Time Payment
+                      </Text>
+                    );
+                  }
+
+                  return (
+                    <Text style={styles.subscribeButtonText}>
+                      {pkg.product.title} – {pkg.product.priceString}
+                    </Text>
+                  );
+                };
+
+                return (
+                  <TouchableOpacity
+                    key={pkg.identifier}
+                    style={[
+                      styles.subscribeButton,
+                      isPurchasing && styles.buttonDisabled,
+                    ]}
+                    onPress={() => purchasePackage(pkg)}
+                    disabled={isPurchasing}
+                  >
+                    {isPurchasing ? (
+                      <Text style={styles.subscribeButtonText}>
+                        Processing...
+                      </Text>
+                    ) : (
+                      buttonLabel()
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+
             <TouchableOpacity
-              style={styles.subscribeButton}
-              onPress={() => {
-                // Future integration: RevenueCat trigger goes here
-                setShowPaywall(false);
-              }}
+              style={[styles.restoreButton, isPurchasing && styles.buttonDisabled]}
+              onPress={handleRestore}
+              disabled={isPurchasing}
             >
-              <Text style={styles.subscribeButtonText}>View Plans</Text>
+              <Text style={styles.restoreButtonText}>Restore Purchases</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.closeButton}
+              style={[styles.closeButton, isPurchasing && styles.buttonDisabled]}
               onPress={() => setShowPaywall(false)}
+              disabled={isPurchasing}
             >
               <Text style={styles.closeButtonText}>Not right now</Text>
             </TouchableOpacity>
@@ -88,6 +175,15 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 24,
   },
+  loadingContainer: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  loadingText: {
+    color: "#888888",
+    fontSize: 14,
+    marginTop: 8,
+  },
   subscribeButton: {
     backgroundColor: "#4CAF50",
     paddingVertical: 16,
@@ -98,6 +194,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   subscribeButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
+  subscribeButtonContent: {
+    alignItems: "center",
+    gap: 6,
+  },
+  trialBadge: {
+    backgroundColor: "#2E7D32",
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  trialBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  restoreButton: { padding: 12, marginBottom: 8 },
+  restoreButtonText: { color: "#FFD700", fontSize: 14 },
+  buttonDisabled: { opacity: 0.5 },
   closeButton: { padding: 12 },
   closeButtonText: { color: "#888888", fontSize: 14 },
 });
