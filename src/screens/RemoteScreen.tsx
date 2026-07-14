@@ -16,13 +16,13 @@ import NetInfo from "@react-native-community/netinfo";
 import { AdapterRegistry } from "../network/adapters/AdapterRegistry";
 import { UniversalKey } from "../network/adapters/UniversalAdapter";
 import { useBeamStore } from "../store/useBeamStore";
+import { useAppStore } from "../store/useAppStore";
 import { useMonetizationStore } from "../store/useMonetizationStore";
 import { usePreferencesStore } from "../store/usePreferencesStore";
 import { Colors } from "../theme/Colors";
 
 import { AdBanner } from "../components/AdBanner";
 import { StandardLayout } from "../components/remote/StandardLayout";
-import { SwipeCanvasLayout } from "../components/remote/SwipeCanvasLayout";
 import { SettingsModal } from "../components/settings/SettingsModal";
 
 export const RemoteScreen = () => {
@@ -36,6 +36,7 @@ export const RemoteScreen = () => {
   } = useBeamStore();
   const { isPremium, toggleDevPremium } = useMonetizationStore();
   const { theme, navigation } = usePreferencesStore();
+  const { appsCache, fetchApps } = useAppStore();
 
   const activeColors = Colors[theme];
 
@@ -59,6 +60,20 @@ export const RemoteScreen = () => {
     return activeDevice.supportedKeys.includes(key);
   };
 
+  const apps = activeDevice?.ip ? (appsCache[activeDevice.ip] ?? []) : [];
+
+  const handleAppLaunch = (appId: string) => {
+    if (activeDevice) {
+      AdapterRegistry.launchApp(activeDevice, appId);
+    }
+  };
+
+  useEffect(() => {
+    if (activeDevice && isDeviceConnected) {
+      fetchApps(activeDevice);
+    }
+  }, [activeDevice?.ip, isDeviceConnected]);
+
   useEffect(() => {
     let isMounted = true;
     let heartbeatTimeout: NodeJS.Timeout;
@@ -77,8 +92,8 @@ export const RemoteScreen = () => {
       const freshDeviceState = await AdapterRegistry.pingDevice(activeDevice);
       if (isMounted) {
         setIsDeviceConnected(!!freshDeviceState);
+        heartbeatTimeout = setTimeout(pingTV, 4000); // Safe.
       }
-      heartbeatTimeout = setTimeout(pingTV, 4000);
     };
 
     pingTV();
@@ -146,45 +161,18 @@ export const RemoteScreen = () => {
             <Text style={{ color: activeColors.textPrimary }}>⚙️</Text>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.deviceStatusContainer}>
-          <Text
-            style={[
-              styles.activeDeviceText,
-              {
-                color: isDeviceConnected
-                  ? activeColors.success
-                  : activeColors.danger,
-              },
-            ]}
-          >
-            {isDeviceConnected ? "🟢 " : "🔴 "}
-            {activeDevice?.name || activeIp}
-          </Text>
-          {!isDeviceConnected && (
-            <Text
-              style={[
-                styles.reconnectingSubtext,
-                { color: activeColors.textSecondary },
-              ]}
-            >
-              Reconnecting...
-            </Text>
-          )}
-        </View>
       </View>
 
       <View style={styles.remoteBody}>
-        {navigation === "standard" ? (
-          <StandardLayout
-            handlePress={handlePress}
-            isSupported={isSupported}
-            colors={activeColors}
-            onOpenKeyboard={() => setIsKeyboardVisible(true)}
-          />
-        ) : (
-          <SwipeCanvasLayout handlePress={handlePress} colors={activeColors} />
-        )}
+        <StandardLayout
+          handlePress={handlePress}
+          isSupported={isSupported}
+          colors={activeColors}
+          onOpenKeyboard={() => setIsKeyboardVisible(true)}
+          apps={apps}
+          onLaunchApp={handleAppLaunch}
+          navigationStyle={navigation}
+        />
       </View>
 
       <SettingsModal
@@ -313,10 +301,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  deviceStatusContainer: { alignItems: "center", marginTop: 8 },
-  activeDeviceText: { fontWeight: "600", fontSize: 14 },
-  reconnectingSubtext: { fontSize: 12, marginTop: 4, fontStyle: "italic" },
-
   remoteBody: { flex: 1, justifyContent: "flex-end", paddingHorizontal: 24 },
 
   keyboardModalOverlay: {
